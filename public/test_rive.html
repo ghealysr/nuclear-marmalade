@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Nuke Rive Test</title>
+  <style>
+    body { background: #111; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: system-ui; color: #ccc; }
+    canvas { border: 1px solid #333; cursor: pointer; }
+    .controls { margin-top: 16px; display: flex; gap: 12px; }
+    button { background: #fbbf24; color: #111; border: none; padding: 8px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; }
+    button:hover { background: #f59e0b; }
+    .status { margin-top: 8px; font-size: 13px; color: #666; }
+  </style>
+</head>
+<body>
+  <canvas id="rive" width="768" height="512"></canvas>
+  <div class="controls">
+    <button id="hoverBtn">Toggle Hover</button>
+    <button id="activeBtn">Fire Active</button>
+  </div>
+  <div class="status" id="status">Loading...</div>
+  <script src="https://unpkg.com/@rive-app/canvas@2.21.6"></script>
+  <script>
+    let isHoveredInput, isActiveInput;
+    let hovered = false;
+
+    const r = new rive.Rive({
+      src: '/animations/nuke.riv',
+      canvas: document.getElementById('rive'),
+      autoplay: true,
+      artboard: 'Nuke',
+      stateMachines: 'NukeController',
+      onLoad: () => {
+        console.log('Rive loaded successfully');
+        document.getElementById('status').textContent = 'Loaded! Idle animation playing.';
+
+        const inputs = r.stateMachineInputs('NukeController');
+        console.log('SM inputs:', inputs?.map(i => i.name));
+        if (inputs) {
+          isHoveredInput = inputs.find(i => i.name === 'isHovered');
+          isActiveInput = inputs.find(i => i.name === 'isActive');
+        }
+      },
+      onLoadError: (e) => {
+        console.error('Rive load error:', e);
+        document.getElementById('status').textContent = 'Load error! Check console.';
+      },
+    });
+
+    document.getElementById('hoverBtn').addEventListener('click', () => {
+      if (isHoveredInput) {
+        hovered = !hovered;
+        isHoveredInput.value = hovered;
+        document.getElementById('status').textContent = hovered ? 'Hover state ON' : 'Hover state OFF (returning to idle)';
+      }
+    });
+
+    document.getElementById('activeBtn').addEventListener('click', () => {
+      if (isActiveInput) {
+        isActiveInput.fire();
+        document.getElementById('status').textContent = 'Active triggered! (will return to idle)';
+      }
+    });
+
+    // Also wire up canvas hover for natural interaction
+    const canvas = document.getElementById('rive');
+    canvas.addEventListener('mouseenter', () => {
+      if (isHoveredInput && !hovered) {
+        isHoveredInput.value = true;
+        document.getElementById('status').textContent = 'Canvas hover ON';
+      }
+    });
+    canvas.addEventListener('mouseleave', () => {
+      if (isHoveredInput && !hovered) {
+        isHoveredInput.value = false;
+        document.getElementById('status').textContent = 'Canvas hover OFF';
+      }
+    });
+  </script>
+</body>
+</html>

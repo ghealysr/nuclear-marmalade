@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Nuke Static Assembly Test</title>
+  <style>
+    body { background: #111; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: system-ui; color: #ccc; }
+    canvas { border: 1px solid #333; }
+    .status { margin-top: 8px; font-size: 13px; color: #666; }
+  </style>
+</head>
+<body>
+  <canvas id="rive" width="768" height="512"></canvas>
+  <div class="status" id="status">Loading...</div>
+  <script src="https://unpkg.com/@rive-app/canvas@2.21.6"></script>
+  <script>
+    const r = new rive.Rive({
+      src: '/animations/nuke.riv',
+      canvas: document.getElementById('rive'),
+      autoplay: true,
+      artboard: 'Nuke',
+      stateMachines: 'NukeController',
+      onLoad: () => {
+        const inputs = r.stateMachineInputs('NukeController');
+        document.getElementById('status').textContent =
+          'Loaded! SM inputs: ' + (inputs ? inputs.map(i => i.name).join(', ') : 'none');
+      },
+      onLoadError: (e) => {
+        document.getElementById('status').textContent = 'Error: ' + e;
+      },
+    });
+  </script>
+</body>
+</html>
