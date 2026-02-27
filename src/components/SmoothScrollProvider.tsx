@@ -11,7 +11,6 @@ export function SmoothScrollProvider({ children }: SmoothScrollProviderProps) {
       lerp: 0.05,
       duration: 1.5,
       smoothWheel: true,
-      smoothTouch: false,
     })
 
     function raf(time: number) {

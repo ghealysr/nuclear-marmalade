@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, type Variants } from 'framer-motion'
 
 /* ── Types ── */
 interface IntakeTerminalProps {
@@ -18,7 +18,7 @@ const overlayVariants = {
   exit: { opacity: 0 },
 }
 
-const viewVariants = {
+const viewVariants: Variants = {
   enter: (dir: number) => ({
     opacity: 0,
     x: dir > 0 ? 40 : -40,

@@ -302,8 +302,6 @@ export default function CaseStudies() {
   const telemetryFeedRef = useRef<HTMLDivElement>(null)
   const [activeChapter, setActiveChapter] = useState(0)
   const [chapterProgress, setChapterProgress] = useState(0)
-  const [nukeHovered, setNukeHovered] = useState(false)
-  const [panelOffset, setPanelOffset] = useState(0)
   const prevChapterRef = useRef(0)
   const scrollVelocityRef = useRef(0)
   const lastScrollRef = useRef(0)
@@ -315,7 +313,6 @@ export default function CaseStudies() {
     const sticky = stickyRef.current
     if (!section || !sticky) return
 
-    const sectionRect = section.getBoundingClientRect()
     const viewportHeight = window.innerHeight
 
     const wrapper = sticky.parentElement
@@ -362,9 +359,6 @@ export default function CaseStudies() {
     if (track) {
       track.style.transform = `translateX(-${panelOffset * 100}vw)`
     }
-
-    // Store panelOffset for NukeMascot component
-    setPanelOffset(panelOffset)
 
     const chapter = seg
     setChapterProgress(Math.min(1, Math.max(0, segProg)))
