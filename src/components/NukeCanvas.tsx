@@ -44,14 +44,15 @@ interface NukeCanvasProps {
  */
 export function NukeCanvas({ onModelClick, onLanded, targetPosition, currentSection, isSmiling, chatState, chatActive, isMobile = false }: NukeCanvasProps) {
   // Memoize initial position so NukeModel's fly-in GSAP effect doesn't restart on parent re-renders.
-  // Mobile: centered at bottom; Desktop: right side
+  // Mobile: right side clear of text; Desktop: far right margin
   const modelPosition = useMemo<[number, number, number]>(
-    () => isMobile ? [0, -1.2, 0] : [2, -0.5, 0],
+    () => isMobile ? [1.8, -0.3, 0] : [3.0, -0.2, 0],
     [isMobile],
   )
 
-  // Model scale: smaller on mobile to not obscure content
-  const modelScale = isMobile ? 0.55 : 0.8
+  // Model scale: Nuke is a small floating companion beside content
+  // GLB model is very large natively (~20+ units), so scale must be tiny
+  const modelScale = isMobile ? 0.03 : 0.045
 
   // DPR: cap lower on mobile for GPU savings
   const dpr: [number, number] = isMobile ? [1, 1.5] : [1, 2]
@@ -136,9 +137,9 @@ export function NukeCanvas({ onModelClick, onLanded, targetPosition, currentSect
  * Mapping: (worldX / halfWidth + 1) / 2 → fraction from left
  */
 const HIT_AREA_POSITIONS_DESKTOP: Record<string, { right: string; top: string }> = {
-  hero:     { right: '2%',  top: '15%' },    // model at [2, -0.5, 0]
-  services: { right: '1%',  top: '10%' },    // model at [2.2, 0.3, 0]
-  nuke:     { right: '35%', top: '20%' },    // model at [0, -0.8, 0] — centered
+  hero:     { right: '4%',  top: '30%' },    // model at [3.0, -0.2, 0]
+  services: { right: '4%',  top: '20%' },    // model at [3.0, 0.5, 0]
+  nuke:     { right: '44%', top: '38%' },    // model at [0, -0.3, 0] — centered
 }
 
 /**
@@ -146,9 +147,9 @@ const HIT_AREA_POSITIONS_DESKTOP: Record<string, { right: string; top: string }>
  * Uses left+transform centering instead of right positioning.
  */
 const HIT_AREA_POSITIONS_MOBILE: Record<string, { left: string; top: string }> = {
-  hero:     { left: '50%', top: '45%' },     // model at [0, -1.2, 0] — below center
-  services: { left: '50%', top: '40%' },     // model at [0, -1.0, 0]
-  nuke:     { left: '50%', top: '35%' },     // model at [0, -0.8, 0]
+  hero:     { left: '75%', top: '32%' },     // model at [1.8, -0.3, 0]
+  services: { left: '75%', top: '28%' },     // model at [1.8, -0.1, 0]
+  nuke:     { left: '50%', top: '38%' },     // model at [0, -0.3, 0]
 }
 
 /**
@@ -169,9 +170,9 @@ function NukeHitArea({
 }) {
   const [hovered, setHovered] = useState(false)
 
-  // Hit area dimensions — smaller on mobile
-  const hitWidth = isMobile ? '120px' : '180px'
-  const hitHeight = isMobile ? '240px' : '350px'
+  // Hit area dimensions — generous for easy clicking
+  const hitWidth = isMobile ? '100px' : '140px'
+  const hitHeight = isMobile ? '180px' : '260px'
 
   if (isMobile) {
     const pos = HIT_AREA_POSITIONS_MOBILE[currentSection ?? 'hero'] ?? HIT_AREA_POSITIONS_MOBILE.hero

@@ -19,9 +19,9 @@ interface SectionWaypoint {
  * - nuke: Center, lowered (lands in the MeetNuke "landing zone")
  */
 const WAYPOINTS_DESKTOP: SectionWaypoint[] = [
-  { sectionId: 'hero', position: [2, -0.5, 0] },
-  { sectionId: 'services', position: [2.2, 0.3, 0] },
-  { sectionId: 'nuke', position: [0, -0.8, 0] },
+  { sectionId: 'hero', position: [3.0, -0.2, 0] },
+  { sectionId: 'services', position: [3.0, 0.5, 0] },
+  { sectionId: 'nuke', position: [0, -0.3, 0] },
 ]
 
 /**
@@ -30,14 +30,14 @@ const WAYPOINTS_DESKTOP: SectionWaypoint[] = [
  * obscuring content on narrow screens.
  */
 const WAYPOINTS_MOBILE: SectionWaypoint[] = [
-  { sectionId: 'hero', position: [0, -1.2, 0] },
-  { sectionId: 'services', position: [0, -1.0, 0] },
-  { sectionId: 'nuke', position: [0, -0.8, 0] },
+  { sectionId: 'hero', position: [1.8, -0.3, 0] },
+  { sectionId: 'services', position: [1.8, -0.1, 0] },
+  { sectionId: 'nuke', position: [0, -0.3, 0] },
 ]
 
-/** Default position — matches initial fly-in landing (desktop) */
-const DEFAULT_POSITION_DESKTOP: [number, number, number] = [2, -0.5, 0]
-const DEFAULT_POSITION_MOBILE: [number, number, number] = [0, -1.2, 0]
+/** Default position — matches initial fly-in landing */
+const DEFAULT_POSITION_DESKTOP: [number, number, number] = [3.0, -0.2, 0]
+const DEFAULT_POSITION_MOBILE: [number, number, number] = [1.8, -0.3, 0]
 
 /**
  * Observes page sections with IntersectionObserver and returns the

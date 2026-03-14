@@ -90,11 +90,18 @@ export function NukeModel({ isSmiling = false, chatState = 'idle', onLanded, tar
               mat.toneMapped = false
               mats.push(mat)
             }
+            // Glass material (visor) — restore dark, reflective look.
+            // The visor should be dark with a subtle amber tint, NOT bright yellow.
             if (mat.name === 'Glass') {
-              mat.emissive = new THREE.Color('#fbbf24')
-              mat.emissiveIntensity = 1.5
-              mat.toneMapped = false
-              mats.push(mat)
+              mat.color = new THREE.Color('#1a1a1a')       // Near-black base
+              mat.emissive = new THREE.Color('#000000')     // No emissive glow
+              mat.emissiveIntensity = 0
+              mat.metalness = 0.9                           // Highly reflective
+              mat.roughness = 0.05                          // Mirror-like
+              mat.transparent = false
+              mat.opacity = 1.0
+              mat.toneMapped = true
+              mat.envMapIntensity = 2.0                     // Strong environment reflection
             }
           }
         }
