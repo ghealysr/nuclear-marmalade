@@ -72,7 +72,8 @@ export default function App() {
     <BrowserRouter>
       <div className="bg-black min-h-screen">
         <Navbar />
-        <NukeCanvas
+        {/* NukeCanvas disabled — 3D model needs rigged armature for proper animation */}
+        {/* <NukeCanvas
           onModelClick={handleModelClick}
           onLanded={handleLanded}
           targetPosition={targetPosition}
@@ -81,8 +82,8 @@ export default function App() {
           chatState={chatState}
           chatActive={chatActive}
           isMobile={isMobile}
-        />
-        <NukeChatOverlay
+        /> */}
+        {/* <NukeChatOverlay
           chatOpen={chatOpen}
           onClose={handleChatClose}
           hasLanded={hasLanded}
@@ -92,7 +93,7 @@ export default function App() {
           sendMessage={sendMessage}
           clearResponse={clearResponse}
           isMobile={isMobile}
-        />
+        /> */}
         <Suspense fallback={<div className="h-screen bg-black" />}>
           <Routes>
             <Route path="/" element={<HomePage />} />
