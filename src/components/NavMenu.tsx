@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import gsap from 'gsap'
 
 interface NavMenuProps {
@@ -13,6 +14,7 @@ const NAV_LINKS = [
   { index: '04', label: '/Telemetry', href: '#telemetry' },
   { index: '05', label: '/Manifesto', href: '#manifesto' },
   { index: '06', label: '/Contact', href: '#contact' },
+  { index: '07', label: '/Blog', href: '/blog' },
 ]
 
 const SOCIALS = [
@@ -143,14 +145,30 @@ export function NavMenu({ isOpen, onClose }: NavMenuProps) {
     setHoveredIdx(null)
   }, [])
 
+  const navigate = useNavigate()
+
   // Navigate + close
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
     e.preventDefault()
     onClose()
-    // Delay scroll to let menu close
+    // Delay to let menu close animation play
     setTimeout(() => {
-      const target = document.querySelector(href)
-      target?.scrollIntoView({ behavior: 'smooth' })
+      if (href.startsWith('#')) {
+        // Hash link — scroll to section (navigate home first if on blog page)
+        if (window.location.pathname !== '/') {
+          navigate('/')
+          setTimeout(() => {
+            const target = document.querySelector(href)
+            target?.scrollIntoView({ behavior: 'smooth' })
+          }, 300)
+        } else {
+          const target = document.querySelector(href)
+          target?.scrollIntoView({ behavior: 'smooth' })
+        }
+      } else {
+        // Route link — navigate via router
+        navigate(href)
+      }
     }, 450)
   }
 

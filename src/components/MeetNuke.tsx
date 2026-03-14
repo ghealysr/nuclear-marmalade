@@ -79,8 +79,8 @@ export function MeetNuke() {
           </p>
           <div className="mt-6 flex items-center gap-3 justify-center md:justify-start">
             <img
-              src="/images/marmalade.png"
-              alt="Nuclear Marmalade"
+              src="/images/nuke-mech.png"
+              alt="Nuke — AI Platform"
               className="h-[36px] w-auto"
               loading="lazy"
             />

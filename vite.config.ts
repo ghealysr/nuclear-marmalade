@@ -109,8 +109,18 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react(), nukeChatProxy()],
+    resolve: {
+      dedupe: ['react', 'react-dom', 'three', '@react-three/fiber', '@react-three/drei'],
+    },
     optimizeDeps: {
-      include: ['framer-motion'],
+      include: [
+        'framer-motion',
+        'react',
+        'react-dom',
+        'three',
+        '@react-three/fiber',
+        '@react-three/drei',
+      ],
     },
     server: {
       port: 3001,

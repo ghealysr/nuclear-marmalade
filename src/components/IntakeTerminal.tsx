@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { motion, AnimatePresence, type Variants } from 'framer-motion'
+import { BookingCalendar } from './BookingCalendar'
 
 /* ── Types ── */
 interface IntakeTerminalProps {
@@ -8,8 +9,12 @@ interface IntakeTerminalProps {
 }
 
 type View = 'select' | 'form' | 'calendar'
+type FormStatus = 'idle' | 'submitting' | 'success' | 'error'
 
 const SCOPE_TIERS = ['PILOT', 'CORE_SYSTEM', 'ENTERPRISE', 'SOVEREIGN'] as const
+
+const API_URL = import.meta.env.VITE_API_URL || 'https://api.nuclearmarmalade.com'
+const API_KEY = import.meta.env.VITE_API_KEY || ''
 
 /* ── Transition presets ── */
 const overlayVariants = {
@@ -46,9 +51,27 @@ export function IntakeTerminal({ isOpen, onClose }: IntakeTerminalProps) {
   const [direction, setDirection] = useState(1)
   const [selectedScope, setSelectedScope] = useState<string | null>(null)
 
+  // Form fields
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [description, setDescription] = useState('')
+
+  // Submission state
+  const [formStatus, setFormStatus] = useState<FormStatus>('idle')
+  const [errorMessage, setErrorMessage] = useState('')
+
   const goTo = useCallback((view: View) => {
     setDirection(view === 'select' ? -1 : 1)
     setActiveView(view)
+  }, [])
+
+  const resetForm = useCallback(() => {
+    setName('')
+    setEmail('')
+    setDescription('')
+    setSelectedScope(null)
+    setFormStatus('idle')
+    setErrorMessage('')
   }, [])
 
   const handleClose = useCallback(() => {
@@ -56,9 +79,63 @@ export function IntakeTerminal({ isOpen, onClose }: IntakeTerminalProps) {
     // Reset to selection after close animation
     setTimeout(() => {
       setActiveView('select')
-      setSelectedScope(null)
+      resetForm()
     }, 400)
-  }, [onClose])
+  }, [onClose, resetForm])
+
+  const handleSubmit = useCallback(async () => {
+    // Validate
+    if (!name.trim() || !email.trim() || !description.trim()) {
+      setErrorMessage('All fields are required.')
+      setFormStatus('error')
+      return
+    }
+
+    if (description.trim().length < 10) {
+      setErrorMessage('Please provide more detail about your project.')
+      setFormStatus('error')
+      return
+    }
+
+    setFormStatus('submitting')
+    setErrorMessage('')
+
+    try {
+      const response = await fetch(`${API_URL}/api/leads/intake`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': API_KEY,
+        },
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim(),
+          scope_tier: selectedScope || undefined,
+          project_description: description.trim(),
+          source: 'website',
+          referrer_url: window.location.href,
+        }),
+      })
+
+      if (response.status === 429) {
+        setErrorMessage('A submission from this email was received recently.')
+        setFormStatus('error')
+        return
+      }
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.detail || data.error || 'Submission failed')
+      }
+
+      setFormStatus('success')
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error ? err.message : 'Network error. Please try again.'
+      )
+      setFormStatus('error')
+    }
+  }, [name, email, description, selectedScope])
 
   return (
     <AnimatePresence>
@@ -180,61 +257,113 @@ export function IntakeTerminal({ isOpen, onClose }: IntakeTerminalProps) {
                       </p>
                     </div>
 
-                    <form
-                      className="itk-form"
-                      onSubmit={(e) => e.preventDefault()}
-                    >
-                      <input
-                        type="text"
-                        placeholder="FULL NAME"
-                        className="itk-input"
-                      />
-                      <input
-                        type="email"
-                        placeholder="EMAIL ADDRESS"
-                        className="itk-input"
-                      />
-
-                      {/* Scope Vector */}
-                      <div className="itk-scope-block">
-                        <p className="itk-scope-label">
-                          Select Scope Vector:
+                    {/* Success state */}
+                    {formStatus === 'success' ? (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="itk-success"
+                      >
+                        <div className="itk-success-icon">✓</div>
+                        <h4 className="itk-success-title">
+                          TRANSMISSION RECEIVED
+                        </h4>
+                        <p className="itk-success-text">
+                          Your brief has been securely transmitted. Our team
+                          will review and respond within 24 hours.
                         </p>
-                        <div className="itk-scope-grid">
-                          {SCOPE_TIERS.map((tier) => (
-                            <label key={tier} className="itk-scope-option">
-                              <input
-                                type="radio"
-                                name="scope"
-                                value={tier}
-                                checked={selectedScope === tier}
-                                onChange={() => setSelectedScope(tier)}
-                                className="sr-only"
-                              />
-                              <div
-                                className={`itk-scope-tile ${
-                                  selectedScope === tier
-                                    ? 'itk-scope-tile--active'
-                                    : ''
-                                }`}
-                              >
-                                {tier}
-                              </div>
-                            </label>
-                          ))}
+                        <button
+                          onClick={handleClose}
+                          className="itk-submit-btn"
+                        >
+                          CLOSE TERMINAL
+                        </button>
+                      </motion.div>
+                    ) : (
+                      <form
+                        className="itk-form"
+                        onSubmit={(e) => {
+                          e.preventDefault()
+                          handleSubmit()
+                        }}
+                      >
+                        <input
+                          type="text"
+                          placeholder="FULL NAME"
+                          className="itk-input"
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          disabled={formStatus === 'submitting'}
+                          required
+                        />
+                        <input
+                          type="email"
+                          placeholder="EMAIL ADDRESS"
+                          className="itk-input"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          disabled={formStatus === 'submitting'}
+                          required
+                        />
+
+                        {/* Scope Vector */}
+                        <div className="itk-scope-block">
+                          <p className="itk-scope-label">
+                            Select Scope Vector:
+                          </p>
+                          <div className="itk-scope-grid">
+                            {SCOPE_TIERS.map((tier) => (
+                              <label key={tier} className="itk-scope-option">
+                                <input
+                                  type="radio"
+                                  name="scope"
+                                  value={tier}
+                                  checked={selectedScope === tier}
+                                  onChange={() => setSelectedScope(tier)}
+                                  className="sr-only"
+                                  disabled={formStatus === 'submitting'}
+                                />
+                                <div
+                                  className={`itk-scope-tile ${
+                                    selectedScope === tier
+                                      ? 'itk-scope-tile--active'
+                                      : ''
+                                  }`}
+                                >
+                                  {tier}
+                                </div>
+                              </label>
+                            ))}
+                          </div>
                         </div>
-                      </div>
 
-                      <textarea
-                        placeholder="DESCRIBE YOUR PROJECT OR BOTTLENECK..."
-                        rows={4}
-                        className="itk-input itk-textarea"
-                      />
+                        <textarea
+                          placeholder="DESCRIBE YOUR PROJECT OR BOTTLENECK..."
+                          rows={4}
+                          className="itk-input itk-textarea"
+                          value={description}
+                          onChange={(e) => setDescription(e.target.value)}
+                          disabled={formStatus === 'submitting'}
+                          required
+                          minLength={10}
+                        />
 
-                      <button type="button" className="itk-submit-btn">
-                        SUBMIT BRIEF
-                      </button>
-                    </form>
+                        {/* Error message */}
+                        {formStatus === 'error' && errorMessage && (
+                          <p className="itk-error">{errorMessage}</p>
+                        )}
+
+                        <button
+                          type="submit"
+                          className="itk-submit-btn"
+                          disabled={formStatus === 'submitting'}
+                        >
+                          {formStatus === 'submitting'
+                            ? 'TRANSMITTING...'
+                            : 'SUBMIT BRIEF'}
+                        </button>
+                      </form>
+                    )}
                   </div>
                 </motion.div>
               )}
@@ -260,19 +389,14 @@ export function IntakeTerminal({ isOpen, onClose }: IntakeTerminalProps) {
                     <div className="itk-calendar-header">
                       <span className="itk-pulse-dot itk-pulse-dot--lg" />
                       <h3 className="itk-calendar-title">
-                        Awaiting Secure Sync
+                        Book a Call
                       </h3>
                       <p className="itk-calendar-sub">
-                        Loading scheduling module...
+                        Select a time that works for you
                       </p>
                     </div>
 
-                    {/* Scheduling widget injection point */}
-                    <div className="itk-calendar-slot">
-                      <p className="itk-calendar-placeholder">
-                        [ SCHEDULING_MODULE_INJECTION_POINT ]
-                      </p>
-                    </div>
+                    <BookingCalendar />
                   </div>
                 </motion.div>
               )}

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import { NavMenu } from './NavMenu'
 import gsap from 'gsap'
 
@@ -49,7 +50,7 @@ export function Navbar() {
     <>
       <header className="fixed top-0 left-0 right-0 z-[100] flex items-center justify-between px-6 sm:px-10 pt-5 pb-4 backdrop-blur-sm bg-black/20">
         {/* Logo with section index */}
-        <a href="/" className="group flex items-end gap-3 leading-none">
+        <Link to="/" className="group flex items-end gap-3 leading-none">
           <div className="flex flex-col">
             <span
               className="font-display text-[11px] font-medium uppercase tracking-[0.25em]"
@@ -69,7 +70,7 @@ export function Navbar() {
           </div>
           {/* Section index counter */}
           <span className="nav-section-index">{sectionIdx}</span>
-        </a>
+        </Link>
 
         {/* Right side — status + trigger */}
         <div className="flex items-center gap-5">
