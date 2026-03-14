@@ -43,6 +43,16 @@ interface FlightProxy {
   opacity: number
 }
 
+/**
+ * Mutable state for autonomous roaming.
+ * Picked randomly every few seconds — model drifts toward these offsets.
+ */
+interface RoamTarget {
+  x: number
+  y: number
+  nextChangeTime: number
+}
+
 export function NukeModel({ isSmiling = false, chatState = 'idle', onLanded, targetPosition, screenPosRef, ...props }: NukeModelProps) {
   const groupRef = useRef<THREE.Group>(null)
   const { scene } = useGLTF(MODEL_PATH)
@@ -60,9 +70,9 @@ export function NukeModel({ isSmiling = false, chatState = 'idle', onLanded, tar
   const hasLanded = useRef(false)
   const initialFlyInDone = useRef(false)
   const flightProxy = useRef<FlightProxy>({
-    x: 8, y: 3, z: 0,           // Start off-screen: upper-right
-    rotZ: -0.15,                  // Lean into flight direction
-    scaleX: 0.92, scaleY: 1.1,  // Launch stretch
+    x: 8, y: 4, z: 0,           // Start off-screen: upper-right
+    rotZ: -0.2,                   // Lean into flight direction
+    scaleX: 0.9, scaleY: 1.12,  // Launch stretch
     opacity: 0,
   })
 
@@ -72,6 +82,27 @@ export function NukeModel({ isSmiling = false, chatState = 'idle', onLanded, tar
 
   // Track active section flight timeline for cleanup
   const sectionTlRef = useRef<gsap.core.Timeline | null>(null)
+
+  // --- Mouse tracking ---
+  // Stores normalized mouse position [-1, 1] for both axes
+  const mouseNDC = useRef({ x: 0, y: 0 })
+  // Smoothed mouse values (lerped in useFrame)
+  const mouseLerped = useRef({ x: 0, y: 0 })
+
+  // --- Autonomous roaming ---
+  const roamTarget = useRef<RoamTarget>({ x: 0, y: 0, nextChangeTime: 0 })
+  const roamCurrent = useRef({ x: 0, y: 0 })
+
+  // Mouse tracking listener
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      // Convert to NDC [-1, 1]
+      mouseNDC.current.x = (e.clientX / window.innerWidth) * 2 - 1
+      mouseNDC.current.y = -(e.clientY / window.innerHeight) * 2 + 1
+    }
+    window.addEventListener('mousemove', onMouseMove, { passive: true })
+    return () => window.removeEventListener('mousemove', onMouseMove)
+  }, [])
 
   /**
    * Setup emissive materials for selective bloom.
@@ -91,17 +122,16 @@ export function NukeModel({ isSmiling = false, chatState = 'idle', onLanded, tar
               mats.push(mat)
             }
             // Glass material (visor) — restore dark, reflective look.
-            // The visor should be dark with a subtle amber tint, NOT bright yellow.
             if (mat.name === 'Glass') {
-              mat.color = new THREE.Color('#1a1a1a')       // Near-black base
-              mat.emissive = new THREE.Color('#000000')     // No emissive glow
+              mat.color = new THREE.Color('#1a1a1a')
+              mat.emissive = new THREE.Color('#000000')
               mat.emissiveIntensity = 0
-              mat.metalness = 0.9                           // Highly reflective
-              mat.roughness = 0.05                          // Mirror-like
+              mat.metalness = 0.9
+              mat.roughness = 0.05
               mat.transparent = false
               mat.opacity = 1.0
               mat.toneMapped = true
-              mat.envMapIntensity = 2.0                     // Strong environment reflection
+              mat.envMapIntensity = 2.0
             }
           }
         }
@@ -119,7 +149,6 @@ export function NukeModel({ isSmiling = false, chatState = 'idle', onLanded, tar
 
   /**
    * Toggle smile mesh visibility based on isSmiling prop.
-   * Separate effect so it doesn't re-run the full emissive setup.
    */
   useEffect(() => {
     if (smileMesh.current) {
@@ -128,8 +157,6 @@ export function NukeModel({ isSmiling = false, chatState = 'idle', onLanded, tar
   }, [isSmiling])
 
   // Store the initial fly-in landing position from props.
-  // Depend on individual x/y/z values — NOT the array reference — so the
-  // GSAP fly-in effect doesn't restart on every parent re-render.
   const posArr = props.position
   const px = Array.isArray(posArr) ? posArr[0] : posArr instanceof THREE.Vector3 ? posArr.x : 0
   const py = Array.isArray(posArr) ? posArr[1] : posArr instanceof THREE.Vector3 ? posArr.y : 0
@@ -138,61 +165,89 @@ export function NukeModel({ isSmiling = false, chatState = 'idle', onLanded, tar
 
   /**
    * GSAP fly-in animation on mount.
-   * Tweens the flightProxy ref; useFrame reads it each frame.
+   * Dramatic entrance: 1.5s delay, sweeping arc, elastic landing.
    */
   useEffect(() => {
     const proxy = flightProxy.current
     hasLanded.current = false
     initialFlyInDone.current = false
 
-    // Reset to start position (handles React 18 StrictMode double-mount)
+    // Reset to start position
     Object.assign(proxy, {
-      x: 8, y: 3, z: 0,
-      rotZ: -0.15,
-      scaleX: 0.92, scaleY: 1.1,
+      x: 8, y: 4, z: 0,
+      rotZ: -0.2,
+      scaleX: 0.9, scaleY: 1.12,
       opacity: 0,
     })
 
     const tl = gsap.timeline()
 
-    // Phase 1: Main flight — position + fade in
+    // Phase 1: Fade in (quick)
+    tl.to(proxy, {
+      opacity: 1,
+      duration: 0.4,
+      delay: 1.5, // Dramatic delay — page loads, then Nuke swoops in
+      ease: 'power1.in',
+    }, 0)
+
+    // Phase 2: Arc flight — overshoot Y then settle
+    // X flight
     tl.to(proxy, {
       x: initialPosition.x,
+      duration: 2.0,
+      delay: 1.5,
+      ease: 'power3.out',
+    }, 0)
+
+    // Y flight: arc UP first, then down to target
+    tl.to(proxy, {
+      y: initialPosition.y + 1.0, // Overshoot above target
+      duration: 1.2,
+      delay: 1.5,
+      ease: 'power2.out',
+    }, 0)
+    tl.to(proxy, {
       y: initialPosition.y,
+      duration: 0.8,
+      ease: 'power2.inOut',
+    }, 2.7)
+
+    tl.to(proxy, {
       z: initialPosition.z,
-      opacity: 1,
+      duration: 2.0,
+      delay: 1.5,
+      ease: 'power3.out',
+    }, 0)
+
+    // Phase 3: Normalize rotation and stretch during flight
+    tl.to(proxy, {
+      rotZ: 0.05, // Slight opposite lean as deceleration
+      scaleX: 1, scaleY: 1,
       duration: 1.4,
-      delay: 0.3,
+      delay: 1.8,
       ease: 'power2.out',
     }, 0)
 
-    // Phase 2: During flight — normalize lean and stretch
+    // Phase 4: Landing squash
     tl.to(proxy, {
+      scaleY: 0.85, scaleX: 1.15,
       rotZ: 0,
-      scaleX: 1, scaleY: 1,
-      duration: 1.0,
-      ease: 'power2.out',
-    }, 0.5)
-
-    // Phase 3: Landing squash
-    tl.to(proxy, {
-      scaleY: 0.88, scaleX: 1.12,
       duration: 0.12,
       ease: 'power2.in',
-    }, 1.5)
+    }, 3.3)
 
-    // Phase 4: Elastic bounce back to normal
+    // Phase 5: Elastic bounce back
     tl.to(proxy, {
       scaleY: 1, scaleX: 1,
-      duration: 0.6,
-      ease: 'elastic.out(1.2, 0.4)',
+      duration: 0.8,
+      ease: 'elastic.out(1.2, 0.3)',
       onComplete: () => {
         hasLanded.current = true
         initialFlyInDone.current = true
         currentBase.current.copy(initialPosition)
         onLanded?.()
       },
-    }, 1.62)
+    }, 3.42)
 
     return () => {
       tl.kill()
@@ -202,64 +257,70 @@ export function NukeModel({ isSmiling = false, chatState = 'idle', onLanded, tar
 
   /**
    * Section-triggered flight.
-   * After the initial fly-in completes, when targetPosition changes,
-   * animate the model from its current position to the new target.
-   *
-   * Shorter, snappier than the fly-in — 1.2s with smooth in/out easing.
-   * Includes lean rotation toward the flight direction.
+   * Arc trajectory with lean + squash/stretch.
    */
-  // Stabilize targetPosition reference using individual values
   const tx = targetPosition?.[0] ?? px
   const ty = targetPosition?.[1] ?? py
   const tz = targetPosition?.[2] ?? pz
 
   useEffect(() => {
-    // Skip until initial fly-in has completed
     if (!initialFlyInDone.current) return
 
-    // Skip if already at this position (within tolerance)
     const dx = tx - currentBase.current.x
     const dy = ty - currentBase.current.y
     const dz = tz - currentBase.current.z
     const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
     if (dist < 0.01) return
 
-    // Kill any in-progress section flight
     sectionTlRef.current?.kill()
 
     const proxy = flightProxy.current
-
-    // Snapshot current position (idle bob position → proxy start)
     proxy.x = currentBase.current.x
     proxy.y = currentBase.current.y
     proxy.z = currentBase.current.z
 
-    // Exit idle, enter flight
     hasLanded.current = false
 
-    // Compute lean direction — lean toward movement direction
-    const leanZ = dx > 0.1 ? -0.1 : dx < -0.1 ? 0.1 : 0
+    // Lean toward movement direction
+    const leanZ = dx > 0.1 ? -0.12 : dx < -0.1 ? 0.12 : 0
 
     const tl = gsap.timeline()
 
-    // Phase 1: Launch stretch + lean
+    // Launch stretch + lean
     tl.to(proxy, {
-      scaleY: 1.06, scaleX: 0.95,
+      scaleY: 1.08, scaleX: 0.94,
       rotZ: leanZ,
       duration: 0.15,
       ease: 'power2.out',
     }, 0)
 
-    // Phase 2: Main flight — position
+    // X position
     tl.to(proxy, {
       x: tx,
+      duration: 1.2,
+      ease: 'power2.inOut',
+    }, 0.05)
+
+    // Y: arc overshoot by 0.4 then settle
+    const midY = (currentBase.current.y + ty) / 2 + 0.4
+    tl.to(proxy, {
+      y: midY,
+      duration: 0.6,
+      ease: 'power2.out',
+    }, 0.05)
+    tl.to(proxy, {
       y: ty,
+      duration: 0.6,
+      ease: 'power2.inOut',
+    }, 0.65)
+
+    tl.to(proxy, {
       z: tz,
       duration: 1.2,
       ease: 'power2.inOut',
     }, 0.05)
 
-    // Phase 3: Normalize lean mid-flight
+    // Normalize lean mid-flight
     tl.to(proxy, {
       rotZ: 0,
       scaleX: 1, scaleY: 1,
@@ -267,17 +328,17 @@ export function NukeModel({ isSmiling = false, chatState = 'idle', onLanded, tar
       ease: 'power2.out',
     }, 0.5)
 
-    // Phase 4: Landing squash + bounce
+    // Landing squash + bounce
     tl.to(proxy, {
-      scaleY: 0.9, scaleX: 1.1,
+      scaleY: 0.88, scaleX: 1.12,
       duration: 0.1,
       ease: 'power2.in',
     }, 1.1)
 
     tl.to(proxy, {
       scaleY: 1, scaleX: 1,
-      duration: 0.5,
-      ease: 'elastic.out(1.0, 0.5)',
+      duration: 0.6,
+      ease: 'elastic.out(1.0, 0.4)',
       onComplete: () => {
         hasLanded.current = true
         currentBase.current.set(tx, ty, tz)
@@ -294,11 +355,16 @@ export function NukeModel({ isSmiling = false, chatState = 'idle', onLanded, tar
 
   /**
    * Per-frame animation.
+   *
+   * After landing — the model is ALIVE:
+   * - Multi-frequency organic bob (3 sine waves)
+   * - Autonomous micro-roaming (random drift every 3-6s)
+   * - Mouse tracking (body rotates toward cursor)
+   * - Breathing scale pulse
+   * - Chat-state variations (thinking wobble, streaming nod, error shake)
+   *
    * During flight: reads flightProxy values directly.
-   * After landing: applies idle bob + sway on top of current base position.
-   * Bloom pulse runs always.
    */
-  // Reusable vector for screen projection (avoids per-frame allocation)
   const projVec = useMemo(() => new THREE.Vector3(), [])
 
   useFrame(({ clock, camera, size }) => {
@@ -307,47 +373,77 @@ export function NukeModel({ isSmiling = false, chatState = 'idle', onLanded, tar
     const proxy = flightProxy.current
 
     if (hasLanded.current) {
-      // --- Idle bob (post-landing) with chat-state variations ---
       const base = currentBase.current
 
-      // Chat state modifiers
+      // --- Smooth mouse tracking (lerp toward actual mouse position) ---
+      const lerpSpeed = 0.03
+      mouseLerped.current.x += (mouseNDC.current.x - mouseLerped.current.x) * lerpSpeed
+      mouseLerped.current.y += (mouseNDC.current.y - mouseLerped.current.y) * lerpSpeed
+
+      // --- Autonomous micro-roaming ---
+      // Pick new random offset every 3-6 seconds
+      if (t > roamTarget.current.nextChangeTime) {
+        roamTarget.current.x = (Math.random() - 0.5) * 0.6  // ±0.3 world units
+        roamTarget.current.y = (Math.random() - 0.5) * 0.4  // ±0.2 world units
+        roamTarget.current.nextChangeTime = t + 3 + Math.random() * 3
+      }
+      // Slowly drift toward roam target
+      roamCurrent.current.x += (roamTarget.current.x - roamCurrent.current.x) * 0.008
+      roamCurrent.current.y += (roamTarget.current.y - roamCurrent.current.y) * 0.008
+
+      // --- Multi-frequency organic bob ---
+      // Three sine waves at different frequencies for weightless feeling
       const isThinking = chatState === 'thinking'
       const isStreaming = chatState === 'streaming'
       const isError = chatState === 'error'
 
-      // Bob speed: faster when thinking (anxious energy)
-      const bobSpeed = isThinking ? 1.6 : 0.8
-      const bobAmplitude = isThinking ? 0.2 : 0.15
-      const bobY = Math.sin(t * bobSpeed) * bobAmplitude
+      const bobMult = isThinking ? 1.8 : 1.0
+      const bob1 = Math.sin(t * 0.8 * bobMult) * 0.12   // Primary slow bob
+      const bob2 = Math.sin(t * 1.7 * bobMult) * 0.06   // Secondary faster ripple
+      const bob3 = Math.sin(t * 0.4) * 0.08              // Ultra-slow drift
+      const totalBob = bob1 + bob2 + bob3
 
-      const swayX = Math.sin(t * 0.5) * 0.05
-      groupRef.current.position.x = base.x + swayX
-      groupRef.current.position.y = base.y + bobY
+      // Lateral sway — figure-eight-ish pattern
+      const swayX = Math.sin(t * 0.6) * 0.08 + Math.sin(t * 1.1) * 0.04
+
+      // Apply position: base + roam + bob + sway
+      groupRef.current.position.x = base.x + roamCurrent.current.x + swayX
+      groupRef.current.position.y = base.y + roamCurrent.current.y + totalBob
       groupRef.current.position.z = base.z
 
-      // Rotation: gentle sway, with nod during streaming
-      groupRef.current.rotation.y = Math.sin(t * 0.3) * 0.08
+      // --- Rotation: mouse tracking + organic sway ---
+      // Body rotates toward mouse cursor (Y = left/right, X = up/down tilt)
+      const mouseRotY = mouseLerped.current.x * 0.4     // Turn toward cursor horizontally
+      const mouseRotX = -mouseLerped.current.y * 0.15   // Slight tilt toward cursor vertically
 
+      // Organic rotation layer
+      const organicRotY = Math.sin(t * 0.35) * 0.1
+      const organicRotZ = Math.sin(t * 0.25) * 0.04     // Tiny roll
+
+      // Chat state rotation overrides
+      let chatRotX = 0
       if (isStreaming) {
-        // Gentle nod during response — small x-axis oscillation
-        groupRef.current.rotation.x = Math.sin(t * 1.5) * 0.04
+        chatRotX = Math.sin(t * 1.5) * 0.05  // Gentle nod
       } else if (isError) {
-        // Brief shake — rapid small x oscillations
-        groupRef.current.rotation.x = Math.sin(t * 15) * 0.03
+        chatRotX = Math.sin(t * 15) * 0.04   // Rapid shake
       } else if (isThinking) {
-        // Subtle forward lean while thinking
-        groupRef.current.rotation.x = 0.06
-      } else {
-        groupRef.current.rotation.x = 0
+        chatRotX = 0.08                        // Forward lean
       }
 
-      groupRef.current.rotation.z = 0
-      groupRef.current.scale.set(1, 1, 1)
+      groupRef.current.rotation.y = mouseRotY + organicRotY
+      groupRef.current.rotation.x = mouseRotX + chatRotX
+      groupRef.current.rotation.z = organicRotZ
+
+      // --- Breathing scale pulse ---
+      const breathe = 1 + Math.sin(t * 1.2) * 0.012
+      groupRef.current.scale.set(breathe, breathe, breathe)
+
     } else {
       // --- GSAP-driven flight ---
       groupRef.current.position.set(proxy.x, proxy.y, proxy.z)
       groupRef.current.rotation.z = proxy.rotZ
       groupRef.current.rotation.y = 0
+      groupRef.current.rotation.x = 0
       groupRef.current.scale.set(proxy.scaleX, proxy.scaleY, 1)
     }
 
@@ -355,7 +451,6 @@ export function NukeModel({ isSmiling = false, chatState = 'idle', onLanded, tar
     if (screenPosRef?.current) {
       projVec.copy(groupRef.current.position)
       projVec.project(camera)
-      // NDC [-1,1] → pixel coords
       screenPosRef.current.x = (projVec.x * 0.5 + 0.5) * size.width
       screenPosRef.current.y = (-projVec.y * 0.5 + 0.5) * size.height
       screenPosRef.current.flying = !hasLanded.current
